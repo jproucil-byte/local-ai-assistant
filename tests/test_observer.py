@@ -141,6 +141,10 @@ class ObserverTests(unittest.TestCase):
         self.assertEqual(self.window.windowOpacity(), 1)
         dialog.opacity.setValue(65)
         dialog.interval.setValue(30)
+        self.assertFalse(dialog.thinking.isEnabled())
+        dialog.model.setCurrentText('qwen3.5:4b')
+        self.assertTrue(dialog.thinking.isEnabled())
+        dialog.thinking.setChecked(True)
         with patch('local_ai_assistant.main.SettingsDialog', return_value=dialog), \
                 patch.object(dialog, 'exec', return_value=QDialog.DialogCode.Accepted), \
                 patch.object(self.window.settings, 'save') as save:
@@ -148,6 +152,7 @@ class ObserverTests(unittest.TestCase):
         save.assert_called_once()
         self.assertEqual(self.window.settings.opacity, 65)
         self.assertEqual(self.window.settings.watch_interval, 30)
+        self.assertTrue(self.window.settings.extended_thinking)
         self.assertAlmostEqual(self.window.windowOpacity(), .65, delta=.01)
         dialog.close()
 
@@ -159,9 +164,11 @@ class ObserverSettingsTests(unittest.TestCase):
             path.write_text(json.dumps({'model': 'gemma3:4b'}), encoding='utf-8')
             self.assertEqual(Settings.load().opacity, 100)
             self.assertEqual(Settings.load().watch_interval, 15)
-            Settings(opacity=60, watch_interval=20).save()
+            self.assertFalse(Settings.load().extended_thinking)
+            Settings(opacity=60, watch_interval=20, extended_thinking=True).save()
             self.assertEqual(Settings.load().opacity, 60)
             self.assertEqual(Settings.load().watch_interval, 20)
+            self.assertTrue(Settings.load().extended_thinking)
 
     def test_settings_bounds(self):
         self.assertEqual(Settings(opacity=0).opacity, 30)

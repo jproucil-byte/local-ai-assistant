@@ -20,6 +20,7 @@ class Settings:
     always_on_top: bool = True
     opacity: int = 100
     watch_interval: int = 15
+    extended_thinking: bool = False
 
     def __post_init__(self):
         for name, low, high, default in (('opacity', 30, 100, 100),
@@ -28,6 +29,8 @@ class Settings:
             if type(value) is not int:
                 value = default
             setattr(self, name, max(low, min(high, value)))
+        if type(self.extended_thinking) is not bool:
+            self.extended_thinking = False
 
     @classmethod
     def load(cls):

@@ -69,6 +69,11 @@ are not included, and no exclusion or redaction is implemented yet.
 See [model suggestions](docs/MODEL_RECOMMENDATIONS.md) for alternative local vision
 models. Settings lists suggestions, not installed models. Download a model with
 `ollama pull <model>` before selecting it; you can also type a custom model name.
+For Qwen3.5, **Extended reasoning** is off by default for faster replies. Enable
+it for longer reasoning before the final answer; it can substantially increase
+latency for both chat and screen watch. This control does not change other model
+families. Gemma remains the default model; local comparison results and larger
+model options are recorded in the model suggestions document.
 
 ## Privacy
 Screenshots are captured when clicking **Capture screen**, while an explicitly

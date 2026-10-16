@@ -25,14 +25,16 @@ WATCH_PROMPT = ('Popiš česky stručně, co je na tomto aktuálním snímku hla
 class Worker(QObject):
     finished = Signal(str)
     failed = Signal(str)
-    def __init__(self, endpoint, model, messages, screenshot):
+    def __init__(self, endpoint, model, messages, screenshot, extended_thinking=False):
         super().__init__()
         self.endpoint, self.model = endpoint, model
         self.messages, self.screenshot = messages, screenshot
+        self.extended_thinking = extended_thinking
     @Slot()
     def run(self):
         try:
-            self.finished.emit(chat(self.endpoint, self.model, self.messages, self.screenshot))
+            self.finished.emit(chat(self.endpoint, self.model, self.messages, self.screenshot,
+                                    self.extended_thinking))
         except Exception as exc:
             self.failed.emit(f'{type(exc).__name__}: {exc}')
 
@@ -47,6 +49,11 @@ class SettingsDialog(QDialog):
         self.model.addItems(['gemma3:4b', 'qwen3.5:4b', 'qwen3.5:2b',
                              'qwen3-vl:4b', 'ministral-3:3b'])
         self.model.setCurrentText(settings.model)
+        self.thinking = QCheckBox('Extended reasoning (Qwen3.5)')
+        self.thinking.setChecked(settings.extended_thinking)
+        self.thinking.setToolTip('Off gives faster replies. On allows more reasoning before the final answer and can take much longer.')
+        self.thinking.setEnabled(settings.model.partition(':')[0] == 'qwen3.5')
+        self.model.currentTextChanged.connect(self.update_thinking_enabled)
         self.endpoint = QLineEdit(settings.endpoint)
         self.endpoint.setToolTip('Address of Ollama on this computer. 127.0.0.1 means this computer; 11434 is its service port.')
         self.on_top = QCheckBox()
@@ -58,9 +65,7 @@ class SettingsDialog(QDialog):
         opacity_row = QHBoxLayout()
         opacity_row.addWidget(self.opacity)
         opacity_row.addWidget(self.opacity_label)
-        self.opacity.valueChanged.connect(lambda value: self.opacity_label.setText(f'{value}%'))
-        if parent:
-            self.opacity.valueChanged.connect(lambda value: parent.setWindowOpacity(value / 100))
+        self.opacity.valueChanged.connect(self.preview_opacity)
         self.interval = QSpinBox()
         self.interval.setRange(5, 120)
         self.interval.setSuffix(' s')
@@ -69,6 +74,7 @@ class SettingsDialog(QDialog):
         model_hint = QLabel('Suggestions only. Download a model with ollama pull <model> before selecting it.')
         model_hint.setWordWrap(True)
         form.addRow(model_hint)
+        form.addRow(self.thinking)
         form.addRow('Local endpoint', self.endpoint)
         endpoint_hint = QLabel('Ollama runs on this computer. Usually no change is needed.')
         endpoint_hint.setWordWrap(True)
@@ -82,6 +88,16 @@ class SettingsDialog(QDialog):
         save = QPushButton('Save')
         save.clicked.connect(self.accept)
         form.addRow(save)
+
+    @Slot(str)
+    def update_thinking_enabled(self, model):
+        self.thinking.setEnabled(model.strip().partition(':')[0] == 'qwen3.5')
+
+    @Slot(int)
+    def preview_opacity(self, value):
+        self.opacity_label.setText(f'{value}%')
+        if self.parent():
+            self.parent().setWindowOpacity(value / 100)
 
 class Window(QWidget):
     def __init__(self):
@@ -190,6 +206,7 @@ class Window(QWidget):
             self.settings.always_on_top = dialog.on_top.isChecked()
             self.settings.opacity = dialog.opacity.value()
             self.settings.watch_interval = dialog.interval.value()
+            self.settings.extended_thinking = dialog.thinking.isChecked()
             self.settings.save()
             self.apply_flags()
             self.setWindowOpacity(self.settings.opacity / 100)
@@ -298,7 +315,7 @@ class Window(QWidget):
         self.status.setText('Thinking locally…')
         self.thread = QThread(self)
         self.worker = Worker(self.settings.endpoint, self.settings.model,
-                             messages, screenshot)
+                             messages, screenshot, self.settings.extended_thinking)
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.success)
