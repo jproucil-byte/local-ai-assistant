@@ -44,9 +44,15 @@ attachment; capture again to share an updated screen.
 The local endpoint (`http://127.0.0.1:11434`) is the address of the Ollama service
 on this computer, and normally does not need to be changed.
 
+### Active window and tray
+
+Click **Capture active window (3 s delay)**, then switch to the target window before the countdown ends. The image is attached to the next message. On Windows this captures the visible pixels in the foreground window rectangle; obscuring windows may appear in the image. This is not a hidden-window capture. On other operating systems the feature reports that it is unavailable.
+
+When a system tray is available, closing the window hides the assistant instead of quitting. Use the tray menu to reopen or exit. During an active model request, Quit waits for the current request to finish.
+
 ### Window opacity and screen watch
 
-In Settings, use **Window opacity** to preview and save transparency (30–100%).
+In Settings, move the **Window opacity slider** to choose any integer transparency setting from 30% to 100%; changes are previewed immediately.
 Closing Settings without saving restores the previous opacity. The whole window,
 including text, becomes translucent; 100% restores normal readability.
 
@@ -84,7 +90,7 @@ No screenshot or chat transcript is intentionally written to disk by this app.
 Settings are stored per-user; screen watch is never enabled automatically on restart.
 
 ## Limitations
-First display only. No persistent chat history, global hotkey, tray icon, autonomous
+First display only. No persistent chat history, global hotkey, autonomous
 web browsing, or action engine yet. Screen watch uses periodic still images. UI
 logic is tested with simulated captures; real display and transparency behavior
 can vary by desktop environment.
