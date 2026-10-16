@@ -3,10 +3,12 @@ from datetime import datetime
 from PySide6.QtCore import Qt, QObject, QThread, QTimer, Signal, Slot
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QPlainTextEdit, QLineEdit, QCheckBox,
-    QDialog, QFormLayout, QMessageBox, QComboBox, QSlider, QSpinBox)
+    QDialog, QFormLayout, QMessageBox, QComboBox, QSlider, QSpinBox,
+    QSystemTrayIcon, QMenu, QStyle)
 from .config import Settings
 from .ollama_client import chat, local_endpoint
 from .screen import capture_primary_screen
+from .active_window import capture_active_window
 
 SYSTEM_PROMPT = ('You are Local AI Assistant, a privacy-focused desktop advisor. '
                  'Answer in the language of the user. You may interpret screenshots, '
@@ -115,6 +117,7 @@ class Window(QWidget):
         self.watch_timer.setSingleShot(True)
         self.watch_timer.timeout.connect(self.observe_screen)
         self.setWindowTitle('Local AI Assistant · Alpha')
+        self.tray = None
         self.resize(460, 700)
         self.apply_flags()
         self.setWindowOpacity(self.settings.opacity / 100)
@@ -177,6 +180,10 @@ class Window(QWidget):
         self.send_button.clicked.connect(self.send)
         bottom.addWidget(self.send_button)
         root.addLayout(bottom)
+        self.active_button = QPushButton('◫  Capture active window (3 s delay)')
+        self.active_button.setToolTip('Switch to the desired window within three seconds. Captures visible pixels only.')
+        self.active_button.clicked.connect(self.capture_active_delayed)
+        root.addWidget(self.active_button)
         hint = QLabel('Screens stay local · Screen watch is optional · Advisor only')
         hint.setWordWrap(True)
         hint.setStyleSheet('color:#8290a5; font-size:11px;')
@@ -270,6 +277,47 @@ class Window(QWidget):
             QMessageBox.warning(self, 'Capture failed', str(exc))
         self.update_capture_button()
 
+    def capture_active_delayed(self):
+        self.status.setText('Switch to the desired window now · Capturing in 3 seconds…')
+        QTimer.singleShot(3000, self.capture_active_now)
+
+    def capture_active_now(self):
+        try:
+            self.screenshot = capture_active_window()
+            self.status.setText('Active window screenshot attached to next message')
+        except Exception as exc:
+            QMessageBox.warning(self, 'Capture failed', str(exc))
+        self.update_capture_button()
+
+    def show_from_tray(self):
+        self.closing = False
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def setup_tray(self, app):
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            return
+        self.tray = QSystemTrayIcon(self)
+        self.tray.setIcon(app.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+        menu = QMenu()
+        menu.addAction('Show assistant', self.show_from_tray)
+        menu.addAction('Hide assistant', self.hide)
+        menu.addSeparator()
+        menu.addAction('Quit', self.quit_from_tray)
+        self.tray.setContextMenu(menu)
+        self.tray.activated.connect(
+            lambda reason: self.show_from_tray() if reason == QSystemTrayIcon.ActivationReason.Trigger else None)
+        self.tray.show()
+
+    def quit_from_tray(self):
+        self.closing = True
+        self.stop_watch()
+        if self.thread is None:
+            QApplication.instance().quit()
+        else:
+            self.hide()
+
     def clear_chat(self):
         if self.thread is not None:
             return
@@ -312,6 +360,7 @@ class Window(QWidget):
         self.request_generation = self.watch_generation
         self.send_button.setEnabled(False)
         self.capture_button.setEnabled(False)
+        self.active_button.setEnabled(False)
         self.status.setText('Thinking locally…')
         self.thread = QThread(self)
         self.worker = Worker(self.settings.endpoint, self.settings.model,
@@ -361,14 +410,20 @@ class Window(QWidget):
         self.request_kind = None
         self.send_button.setEnabled(True)
         self.capture_button.setEnabled(True)
+        self.active_button.setEnabled(True)
         if finished_kind == 'watch' and not self.watching and self.watch_status.text().startswith('Screen watch OFF'):
             self.watch_status.setText('Screen watch OFF · No automatic captures')
         if self.closing:
-            self.close()
+            QApplication.instance().quit()
         elif self.watching:
             self.watch_timer.start(self.settings.watch_interval * 1000)
 
     def closeEvent(self, event):
+        if self.tray is not None and not self.closing:
+            self.stop_watch()
+            event.ignore()
+            self.hide()
+            return
         self.stop_watch()
         self.closing = True
         if self.thread is not None:
@@ -381,6 +436,8 @@ def main():
     app = QApplication(sys.argv)
     app.setApplicationName('Local AI Assistant')
     window = Window()
+    app.setQuitOnLastWindowClosed(False)
+    window.setup_tray(app)
     window.show()
     sys.exit(app.exec())
 
