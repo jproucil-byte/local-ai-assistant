@@ -1,4 +1,4 @@
-"""Screenshot capture is performed only after explicit user action."""
+"""Capture one frame on request or during an explicitly started screen watch."""
 from io import BytesIO
 
 def capture_primary_screen() -> bytes:

@@ -18,6 +18,16 @@ class Settings:
     model: str = 'gemma3:4b'
     endpoint: str = 'http://127.0.0.1:11434'
     always_on_top: bool = True
+    opacity: int = 100
+    watch_interval: int = 15
+
+    def __post_init__(self):
+        for name, low, high, default in (('opacity', 30, 100, 100),
+                                          ('watch_interval', 5, 120, 15)):
+            value = getattr(self, name)
+            if type(value) is not int:
+                value = default
+            setattr(self, name, max(low, min(high, value)))
 
     @classmethod
     def load(cls):

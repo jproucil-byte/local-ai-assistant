@@ -19,10 +19,20 @@ PySide6 Floating UI
 
 ## Current behavior
 1. Qt UI runs on the main thread; blocking inference runs on QThread.
-2. Screenshots are captured on explicit request, kept in memory and attached once.
+2. Screenshots are captured on explicit request or during explicitly started screen
+   watch. Frames remain in memory; watch results replace a separate summary panel.
 3. Model communication is restricted to HTTP loopback.
 4. OS actions are not implemented.
 5. No persistent chat or screen history.
+6. Window opacity is persisted (30–100%); the settings dialog provides a reversible preview.
+7. Screen watch always starts off. A single-shot Qt timer schedules the next frame
+   5–120 seconds after model completion. Chat and observation share one worker slot.
+   No inference queue or overlapping captures are created. Chat during watch uses a
+   fresh frame; observation requests use only the system prompt and current frame.
+8. Stop, Clear, settings save, errors and window close stop automatic captures.
+   Session generations discard late results from a stopped or restarted watch.
+   In-flight HTTP requests can finish but cannot re-enable watch. Close waits for
+   worker cleanup without leaving background observation enabled.
 
 ## Operator security requirements
 - Default-deny, task-scoped capabilities and typed action arguments.
