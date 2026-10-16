@@ -27,6 +27,21 @@ python -m local_ai_assistant.main
 
 On Linux/macOS use `python3 -m venv .venv` and `source .venv/bin/activate`.
 
+### Daily use on Windows
+
+After setup, double-click `Start-Assistant.cmd`. It starts the local Ollama
+service if needed, then opens the assistant without a separate Python console.
+The configured model must already be downloaded (`ollama pull gemma3:4b`).
+
+Write your question and click **Send**. For screen analysis, click **Capture
+screen**, then send a question about the captured screen. Use the gear button
+to change the model or local endpoint. Answers follow the language of your question.
+After capture, the green **Remove screenshot** button indicates that one snapshot
+is attached. Click it to remove the attachment. Sending a message consumes the
+attachment; capture again to share an updated screen. There is no live screen feed.
+The local endpoint (`http://127.0.0.1:11434`) is the address of the Ollama service
+on this computer, and normally does not need to be changed.
+
 ## Privacy
 Screenshots are captured only when clicking **Capture screen**, held in memory, and sent to the configured loopback Ollama endpoint on the next message. No screenshot or chat transcript is intentionally written to disk by this app. Settings are stored per-user.
 

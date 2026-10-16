@@ -9,7 +9,10 @@ from .screen import capture_primary_screen
 
 SYSTEM_PROMPT = ('You are Local AI Assistant, a privacy-focused desktop advisor. '
                  'Answer in the language of the user. You may interpret screenshots, '
-                 'but cannot click, type, edit files, execute commands, or browse the web. '
+                 'but only receive a single snapshot when the user attaches one. '
+                 'You do not see a live screen. Never claim to see the current screen '
+                 'without an attached screenshot. '
+                 'You cannot click, type, edit files, execute commands, or browse the web. '
                  'Never claim to have performed an action. If the image is unclear, say so.')
 
 class Worker(QObject):
@@ -33,10 +36,14 @@ class SettingsDialog(QDialog):
         form = QFormLayout(self)
         self.model = QLineEdit(settings.model)
         self.endpoint = QLineEdit(settings.endpoint)
+        self.endpoint.setToolTip('Address of Ollama on this computer. 127.0.0.1 means this computer; 11434 is its service port.')
         self.on_top = QCheckBox()
         self.on_top.setChecked(settings.always_on_top)
         form.addRow('Ollama model', self.model)
         form.addRow('Local endpoint', self.endpoint)
+        endpoint_hint = QLabel('Ollama runs on this computer. Usually no change is needed.')
+        endpoint_hint.setWordWrap(True)
+        form.addRow(endpoint_hint)
         form.addRow('Always on top', self.on_top)
         save = QPushButton('Save')
         save.clicked.connect(self.accept)
@@ -58,6 +65,7 @@ class Window(QWidget):
              border-radius:9px; padding:9px; selection-background-color:#3c6cc9;}
           QPushButton {background:#29354b; border:0; border-radius:9px; padding:10px;}
           QPushButton:hover {background:#364969;}
+          QPushButton:checked {background:#245c49; border:1px solid #72d6a7;}
           QPushButton:disabled {color:#7f8899; background:#222936;}
         """)
         root = QVBoxLayout(self)
@@ -73,6 +81,7 @@ class Window(QWidget):
         top.addWidget(settings_button)
         root.addLayout(top)
         self.status = QLabel('Local · Advisor mode · No screen captured')
+        self.status.setWordWrap(True)
         self.status.setStyleSheet('color:#a1acbd;')
         root.addWidget(self.status)
         self.history = QTextEdit()
@@ -85,6 +94,8 @@ class Window(QWidget):
         root.addWidget(self.input)
         bottom = QHBoxLayout()
         self.capture_button = QPushButton('◫  Capture screen')
+        self.capture_button.setCheckable(True)
+        self.update_capture_button()
         self.capture_button.clicked.connect(self.capture)
         bottom.addWidget(self.capture_button)
         clear = QPushButton('Clear')
@@ -94,7 +105,7 @@ class Window(QWidget):
         self.send_button.clicked.connect(self.send)
         bottom.addWidget(self.send_button)
         root.addLayout(bottom)
-        hint = QLabel('Read-only prototype · No computer-control permissions')
+        hint = QLabel('Single screenshot per message · No live screen access')
         hint.setStyleSheet('color:#8290a5; font-size:11px;')
         root.addWidget(hint)
 
@@ -119,18 +130,33 @@ class Window(QWidget):
             self.apply_flags()
             self.show()
 
+    def update_capture_button(self):
+        attached = self.screenshot is not None
+        self.capture_button.setChecked(attached)
+        self.capture_button.setText('✓  Remove screenshot' if attached else '◫  Capture screen')
+        self.capture_button.setToolTip(
+            'One screenshot is attached to the next message. Click to remove it.' if attached else
+            'Take one screenshot for your next message. This does not enable live screen access.')
+
     def capture(self):
+        if self.screenshot is not None:
+            self.screenshot = None
+            self.update_capture_button()
+            self.status.setText('Screenshot removed · No screenshot attached')
+            return
         try:
             self.screenshot = capture_primary_screen()
-            self.status.setText('Screenshot attached to next message · Not saved')
+            self.status.setText('1 screenshot attached to next message · No live access')
         except Exception as exc:
             QMessageBox.warning(self, 'Capture failed', str(exc))
+        self.update_capture_button()
 
     def clear_chat(self):
         if self.thread is not None:
             return
         self.messages = [{'role': 'system', 'content': SYSTEM_PROMPT}]
         self.screenshot = None
+        self.update_capture_button()
         self.history.clear()
         self.status.setText('Local · Advisor mode · No screen captured')
 
@@ -153,6 +179,7 @@ class Window(QWidget):
         self.worker = Worker(self.settings.endpoint, self.settings.model,
                              list(self.messages), self.screenshot)
         self.screenshot = None
+        self.update_capture_button()
         self.worker.moveToThread(self.thread)
         self.thread.started.connect(self.worker.run)
         self.worker.finished.connect(self.success)
